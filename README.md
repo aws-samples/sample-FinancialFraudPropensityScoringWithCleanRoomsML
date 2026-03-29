@@ -313,18 +313,71 @@ https://us-east-1.quicksight.aws.amazon.com/sn/dashboards/cleanrooms-ml-fsi-frau
 #### Dashboard Screenshots
 
 **Score Distribution**
-![Score Distribution](img/Screenshot%202026-03-27%20185245.png)
+![Score Distribution](img/dashboard-score-distribution.png)
 
 **Risk Breakdown**
-![Risk Breakdown](img/Screenshot%202026-03-27%20185306.png)
+![Risk Breakdown](img/dashboard-risk-breakdown.png)
 
 **Account & Card Analysis**
-![Account & Card Analysis](img/Screenshot%202026-03-27%20185327.png)
+![Account & Card Analysis](img/dashboard-account-card-analysis.png)
 
 > **Note:** To download the raw inference output from S3 instead:
 > ```bash
 > aws s3 cp s3://cleanrooms-ml-fsi-fraud-output-<ACCOUNT_ID>-<RUN_ID>/cleanrooms-ml-output/ ./results/ --recursive --region <REGION>
 > ```
+
+---
+
+## Architecture Diagram
+
+```mermaid
+flowchart TB
+    subgraph S3_Source["Amazon S3  Source Data"]
+        A["Bank Account Behavior CSV"]
+        B["Payment Processor Transactions CSV"]
+    end
+
+    subgraph Glue["AWS Glue Data Catalog"]
+        GA["bank_account_behavior"]
+        GB["payment_processor_transactions"]
+    end
+
+    subgraph ECR["Amazon ECR  Container Images"]
+        TI["Training Image\n(GradientBoosting + sklearn)"]
+        II["Inference Image\n(SageMaker PyTorch base)"]
+    end
+
+    subgraph CR["AWS Clean Rooms  Collaboration"]
+        CT["Configured Tables\n+ Analysis Rules"]
+        CRML["AWS Clean Rooms ML"]
+        TJ["Training Job"]
+        IJ["Inference Job"]
+
+        CT -->|"JOIN on customer_id"| CRML
+        CRML --> TJ
+        CRML --> IJ
+        TJ -->|"model.joblib"| IJ
+    end
+
+    subgraph S3_Output["Amazon S3  Results"]
+        OUT["fraud_propensity_score\npredicted_suspicious\n+ contextual columns"]
+    end
+
+    subgraph Dashboard["Amazon QuickSight  Dashboard"]
+        ATH["AWS Glue + Athena\n(inference_output table)"]
+        QS["4-Sheet Dashboard\nScore Distribution · Risk Breakdown\nAccount & Card Analysis · Business Impact"]
+        ATH --> QS
+    end
+
+    A --> GA
+    B --> GB
+    GA --> CT
+    GB --> CT
+    TI -.->|"pulled by"| TJ
+    II -.->|"pulled by"| IJ
+    IJ --> OUT
+    OUT --> ATH
+```
 
 ---
 
