@@ -1,0 +1,102 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+"""
+Build and push training/inference containers to ECR using local Docker.
+Reads config from config.py.
+"""
+import sys, os, subprocess
+sys.stdout.reconfigure(encoding='utf-8')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from config import *
+validate()
+
+import boto3
+
+ecr = boto3.client("ecr", region_name=AWS_REGION)
+
+ECR_ENDPOINT = f"{AWS_ACCOUNT_ID}.dkr.ecr.{AWS_REGION}.amazonaws.com"
+TRAINING_REPO = "cleanrooms-ml-fsi-fraud-training"
+INFERENCE_REPO = "cleanrooms-ml-fsi-fraud-inference"
+TAG = "latest"
+
+project_root = os.path.join(os.path.dirname(__file__), "..")
+
+
+def log(msg):
+    print(f"  → {msg}")
+
+
+def run(cmd_list, **kwargs):
+    """Run a command with shell=False for safety. cmd_list must be a list of args."""
+    print(f"  $ {' '.join(cmd_list)}")
+    result = subprocess.run(cmd_list, shell=False, capture_output=True, text=True, **kwargs)
+    if result.returncode != 0:
+        print(f"  STDERR: {result.stderr.strip()}")
+    return result
+
+
+def ensure_ecr_repo(repo_name):
+    try:
+        ecr.create_repository(repositoryName=repo_name)
+        log(f"Created ECR repo: {repo_name}")
+    except ecr.exceptions.RepositoryAlreadyExistsException:
+        log(f"ECR repo exists: {repo_name}")
+
+
+def docker_login(registry):
+    token = subprocess.run(
+        ["aws", "ecr", "get-login-password", "--region", AWS_REGION],
+        shell=False, capture_output=True, text=True
+    )
+    result = subprocess.run(
+        ["docker", "login", "--username", "AWS", "--password-stdin", registry],
+        shell=False, input=token.stdout, capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        log(f"Docker login OK: {registry}")
+    else:
+        log(f"Docker login FAILED: {result.stderr.strip()}")
+        sys.exit(1)
+
+
+def build_and_push(repo_name, context_dir):
+    image_tag = f"{ECR_ENDPOINT}/{repo_name}:{TAG}"
+    run(
+        [
+            "docker", "build",
+            "--build-arg", f"AWS_REGION={AWS_REGION}",
+            "--build-arg", f"SAGEMAKER_REGISTRY={SAGEMAKER_REGISTRY}",
+            "-t", image_tag, context_dir,
+        ],
+        cwd=project_root
+    )
+    run(["docker", "push", image_tag])
+    log(f"Pushed: {image_tag}")
+
+
+def main():
+    print("=" * 60)
+    print("Build & Push Containers (local Docker)")
+    print("=" * 60)
+    print(f"Account: {AWS_ACCOUNT_ID}  Region: {AWS_REGION}\n")
+
+    # Authenticate Docker with ECR
+    docker_login(ECR_ENDPOINT)
+    docker_login(f"{SAGEMAKER_REGISTRY}.dkr.ecr.{AWS_REGION}.amazonaws.com")
+
+    # Create repos
+    ensure_ecr_repo(TRAINING_REPO)
+    ensure_ecr_repo(INFERENCE_REPO)
+
+    # Build and push
+    build_and_push(TRAINING_REPO, "containers/training/")
+    build_and_push(INFERENCE_REPO, "containers/inference/")
+
+    print(f"\nTraining image:  {ECR_ENDPOINT}/{TRAINING_REPO}:{TAG}")
+    print(f"Inference image: {ECR_ENDPOINT}/{INFERENCE_REPO}:{TAG}")
+
+
+if __name__ == "__main__":
+    main()

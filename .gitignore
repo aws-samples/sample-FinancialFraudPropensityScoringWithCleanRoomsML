@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated data (users regenerate via script)
+data/*.csv
+
+# Run ID (auto-generated per demo run)
+.run_id
+
+# ASH security scan artifacts
+.ash/
+ash-output/
+ash-security-scan-report.md
+
+# Scan reports
+scan-report*.json
+git-secrets-scan-report.txt
+repolinter-report.md
+
+# Build artifacts
+scripts/sourcedir.tar.gz
+scripts/trust-policy.json
+
+# Zip archives
+*.zip
+
+# Kiro
+.kiro/
