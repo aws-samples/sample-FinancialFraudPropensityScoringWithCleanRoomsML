@@ -313,13 +313,13 @@ https://us-east-1.quicksight.aws.amazon.com/sn/dashboards/cleanrooms-ml-fsi-frau
 #### Dashboard Screenshots
 
 **Score Distribution**
-![Score Distribution](img/dashboard-score-distribution.png)
+![Score Distribution](docs/dashboard-score-distribution.png)
 
 **Risk Breakdown**
-![Risk Breakdown](img/dashboard-risk-breakdown.png)
+![Risk Breakdown](docs/dashboard-risk-breakdown.png)
 
 **Account & Card Analysis**
-![Account & Card Analysis](img/dashboard-account-card-analysis.png)
+![Account & Card Analysis](docs/dashboard-account-card-analysis.png)
 
 > **Note:** To download the raw inference output from S3 instead:
 > ```bash
@@ -401,14 +401,18 @@ python scripts/sagemaker_training_job.py
 config.py                          ← SET YOUR ACCOUNT + REGION HERE
 README.md                         ← This file
 buildspec.yml                     ← CodeBuild spec
+pyproject.toml                    ← Dependency declarations (loose constraints)
+uv.lock                           ← Pinned lockfile (exact versions + hashes)
 data/
   generate_synthetic_data.py      ← Generates synthetic bank + payment processor CSVs
 containers/
   training/
     Dockerfile                    ← Parameterized base image via ARG
+    requirements.txt              ← Pinned deps exported from uv.lock
     train.py                      ← GradientBoosting training script (fraud detection)
   inference/
     Dockerfile                    ← Parameterized base image via ARG
+    requirements.txt              ← Pinned deps exported from uv.lock
     serve.py                      ← HTTP server (/ping + /invocations)
     inference_handler.py          ← Model loading + prediction logic
 scripts/
@@ -420,7 +424,43 @@ scripts/
   create_dashboard.py             ← Optional: create QuickSight dashboard (Step 6)
   test_training_local.py          ← Test training locally (no AWS needed)
   sagemaker_training_job.py       ← Optional: run training via SageMaker directly
+  undeploy.py                     ← Delete all demo resources (reverse of setup)
+docs/
+  dashboard-score-distribution.png
+  dashboard-risk-breakdown.png
+  dashboard-account-card-analysis.png
 ```
+
+---
+
+## Dependency Management
+
+Container dependencies are pinned via [`uv`](https://docs.astral.sh/uv/) for reproducible, hash-verified builds.
+
+### Adding or Updating a Dependency
+
+1. Edit `pyproject.toml` (loose constraints live here)
+2. Run `uv lock` to regenerate `uv.lock` with exact versions + hashes
+3. Run `uv export --no-dev --format requirements-txt > containers/training/requirements.txt` and repeat for inference
+4. Commit all changed files (`pyproject.toml`, `uv.lock`, `containers/*/requirements.txt`)
+
+### Local Development
+
+```bash
+uv sync          # creates .venv and installs all deps
+```
+
+---
+
+## Undeploy Resources
+
+To delete all resources created by this demo:
+
+```bash
+python scripts/undeploy.py
+```
+
+Add `--dry-run` to preview what would be deleted without executing. The script removes Clean Rooms ML resources, the collaboration, Glue catalog, S3 buckets, ECR repos, IAM roles, CodeBuild project, and QuickSight resources — in reverse dependency order.
 
 ---
 
