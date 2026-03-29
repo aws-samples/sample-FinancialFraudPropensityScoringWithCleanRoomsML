@@ -425,6 +425,7 @@ scripts/
   test_training_local.py          ← Test training locally (no AWS needed)
   sagemaker_training_job.py       ← Optional: run training via SageMaker directly
   undeploy.py                     ← Delete all demo resources (reverse of setup)
+  scan_regions.py                 ← Scan all regions for deployed demo resources
 docs/
   dashboard-score-distribution.png
   dashboard-risk-breakdown.png
@@ -461,6 +462,12 @@ python scripts/undeploy.py
 ```
 
 Add `--dry-run` to preview what would be deleted without executing. The script removes Clean Rooms ML resources, the collaboration, Glue catalog, S3 buckets, ECR repos, IAM roles, CodeBuild project, and QuickSight resources — in reverse dependency order.
+
+To find resources deployed across all regions before running undeploy:
+
+```bash
+python scripts/scan_regions.py
+```
 
 ---
 
