@@ -231,13 +231,25 @@ The metrics above demonstrate the core value of the clean room collaboration:
 
 ## End-to-End Setup Guide
 
+### Approximate Timing
+
+| Step | Description | Time |
+|------|-------------|------|
+| 1 | Generate Synthetic Data | ~5s |
+| 2 | Upload Data to S3 | ~15s |
+| 3 | Build & Push Containers (CodeBuild) | ~7 min |
+| 4 | Setup Clean Rooms Infrastructure | ~35s |
+| 5 | Train Model & Run Inference | ~35 min |
+| 6 | Create QuickSight Dashboard | ~3 min |
+| **Total** | **End-to-end** | **~43 min** |
+
 ### Prerequisites
 
 - Python 3.10+ with `boto3`, `pandas`, `scikit-learn`, `joblib` installed
 - AWS CLI configured with valid credentials
-- AWS account with Clean Rooms ML access enabled
+- AWS account with AWS Clean Rooms ML access enabled
 
-> **Optional — QuickSight Dashboard (Step 6):** If you plan to run `scripts/create_dashboard.py`, your `AWS_REGION` must be a region where Amazon QuickSight is available. QuickSight, Athena, Glue, and S3 must all be in the same region — cross-region Athena connections are not supported by QuickSight. Supported regions include `us-east-1`, `us-east-2`, `us-west-2`, `eu-west-1`, `eu-west-2`, `eu-central-1`, `eu-north-1`, `ap-northeast-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-south-1`, and others. See the [full list](https://docs.aws.amazon.com/quicksight/latest/user/regions-qs.html). Also set `QS_NOTIFICATION_EMAIL` in `config.py` to a valid email address — this is required for QuickSight account registration and is validated at script startup.
+> **Optional — QuickSight Dashboard (Step 6):** If you plan to run `scripts/create_dashboard.py`, your `AWS_REGION` must be a region where Amazon QuickSight is available. QuickSight, Athena, Glue, and S3 must all be in the same region — cross-region Athena connections are not supported by QuickSight. Supported regions include `us-east-1`, `us-east-2`, `us-west-2`, `eu-west-1`, `eu-west-2`, `eu-central-1`, `eu-north-1`, `ap-northeast-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-south-1`, and others. See the [full list](https://docs.aws.amazon.com/quicksight/latest/user/regions-qs.html). Also set `QS_NOTIFICATION_EMAIL` in `config.py` to a valid email address — this is used for QuickSight account registration and is validated at script startup.
 
 ### Step 0: Configure Your Account
 
@@ -249,21 +261,45 @@ AWS_REGION            = "us-east-1"      # Your preferred region
 QS_NOTIFICATION_EMAIL = "your@email.com" # Optional: only needed for Step 6 (QuickSight)
 ```
 
+All scripts read from this single file — no other hardcoded values to change.
+
+A unique run ID is auto-generated on first script execution and saved to `.run_id`. This suffix is appended to bucket names (e.g. `cleanrooms-ml-fsi-fraud-123456789012-202603141530`) to avoid collisions with previous runs. Delete `.run_id` to start a fresh run with new buckets.
+
 ### Step 1: Generate Synthetic Data
+
+**Script:** `data/generate_synthetic_data.py`
 
 ```bash
 python data/generate_synthetic_data.py
 ```
 
+- Generates two synthetic CSV datasets simulating a bank/payment processor collaboration
+- Bank account behavior data (~101K rows): login patterns, auth failures, device activity, geographic spread
+- Payment processor transaction data (~113K rows): chargebacks, declined transactions, cross-border activity, rapid succession events
+- 50,000 customers total with 80% overlap between datasets
+- Embeds a dual latent risk signal so the ML model must leverage both parties' data for optimal performance
+
+**Output artifacts:** `data/bank_account_behavior.csv`, `data/payment_processor_transactions.csv`
+
 ### Step 2: Upload Data to S3
+
+**Script:** `scripts/upload_data.py`
 
 ```bash
 python scripts/upload_data.py
 ```
 
+- Creates the source S3 bucket: `cleanrooms-ml-fsi-fraud-<ACCOUNT_ID>-<RUN_ID>` with Block Public Access, SSE-S3 encryption, versioning, and TLS-only policy
+- Creates the output S3 bucket: `cleanrooms-ml-fsi-fraud-output-<ACCOUNT_ID>-<RUN_ID>` (must be separate from source — AWS Clean Rooms doesn't allow query results in the same bucket as source data)
+- Uploads both CSVs with appropriate prefixes (`bank/`, `payment_processor/`, `data/`)
+
+**Key resources created:** Two S3 buckets with uploaded data
+
 ### Step 3: Build & Push Docker Containers
 
-**Option A — via CodeBuild:**
+**Scripts:** `scripts/codebuild_containers.py` + `buildspec.yml` (or `scripts/build_and_push.py` for local Docker)
+
+**Option A — via CodeBuild (no local Docker needed):**
 ```bash
 python scripts/codebuild_containers.py
 ```
@@ -273,17 +309,61 @@ python scripts/codebuild_containers.py
 python scripts/build_and_push.py
 ```
 
-### Step 4: Set Up Clean Rooms Infrastructure
+- Creates ECR repositories for training and inference images
+- **Training container** (`containers/training/`): SageMaker PyTorch training base image with sklearn, pandas, numpy, joblib
+- **Inference container** (`containers/inference/`): SageMaker PyTorch inference base image (`pytorch-inference:2.3.0-cpu-py311-ubuntu20.04-sagemaker`) — this specific base image is required by AWS Clean Rooms ML
+- Both images are pushed to ECR in your configured region
+- The `buildspec.yml` defines the multi-container build and passes `ACCOUNT_ID`, `REGION`, and `SAGEMAKER_REGISTRY` as build-time variables
+- Dockerfiles use `ARG` to parameterize the base image registry URL
+
+**Output artifacts:** ECR repositories with training and inference container images
+
+### Step 4: Set Up AWS Clean Rooms Infrastructure
+
+**Script:** `scripts/setup_cleanrooms.py`
 
 ```bash
 python scripts/setup_cleanrooms.py
 ```
 
+This creates the full AWS Clean Rooms collaboration infrastructure:
+
+1. **AWS Glue Data Catalog** — database + tables for bank and payment processor data pointing to S3
+2. **IAM Roles:**
+   - `data-provider-role` — allows AWS Clean Rooms to read AWS Glue catalog and S3 data
+   - `model-provider-role` — allows AWS Clean Rooms ML to pull ECR container images
+   - `ml-config-role` — allows AWS Clean Rooms ML to write metrics, logs, and S3 output (needs access to both buckets + Amazon CloudWatch)
+   - `query-runner-role` — allows AWS Clean Rooms ML to execute protected queries
+3. **Collaboration** — with ML modeling enabled (training + inference)
+4. **Membership** — creator membership with query and ML payment responsibilities
+5. **Configured Tables** — for `bank_account_behavior` and `payment_processor_transactions` with LIST analysis rules and `additionalAnalyses: ALLOWED`
+6. **Configured Table Associations** — links tables to the membership
+7. **ML Configuration** — sets the output S3 location and ML config role
+8. **Configured Model Algorithm** — points to the training and inference ECR images with metric definitions
+9. **Model Algorithm Association** — associates the algorithm to the collaboration
+
+**Key resources created:** Collaboration, memberships, configured tables, analysis rules, table associations, ML configuration, model algorithm + association
+
 ### Step 5: Train Model & Run Inference
+
+**Script:** `scripts/run_cleanrooms_ml.py`
 
 ```bash
 python scripts/run_cleanrooms_ml.py
 ```
+
+This orchestrates the full ML pipeline:
+
+1. **Creates training ML input channel** — runs a protected query that joins bank and payment processor data on `customer_id`
+2. **Waits for training channel** to become ACTIVE
+3. **Creates inference ML input channel** — same join query for inference data
+4. **Waits for inference channel** to become ACTIVE
+5. **Creates trained model** — AWS Clean Rooms sends the pre-joined data to the training container, which trains a GradientBoosting classifier
+6. **Waits for training** to complete and model to become ACTIVE
+7. **Starts inference job** — AWS Clean Rooms sends pre-joined data to the inference container, which outputs fraud propensity scores
+8. **Waits for inference** to complete
+
+**Output artifacts:** Trained model (ACTIVE), inference results CSV at `s3://cleanrooms-ml-fsi-fraud-output-<ACCOUNT_ID>-<RUN_ID>/cleanrooms-ml-output/`
 
 ### Step 6: Create QuickSight Dashboard
 
@@ -297,9 +377,10 @@ This creates a fully automated Amazon QuickSight dashboard on top of the inferen
 
 What it does:
 1. Registers the inference output CSV as an AWS Glue table so Athena can query it
-2. Creates an Athena data source in QuickSight
-3. Creates a QuickSight dataset with derived fields (`risk_segment`, `score_decile`, `risk_exposure`)
-4. Creates and publishes a 4-sheet dashboard:
+2. Grants Lake Formation permissions so QuickSight can access the Glue catalog
+3. Creates an Athena data source in QuickSight
+4. Creates a QuickSight dataset with derived fields (`risk_segment`, `score_decile`, `risk_exposure`)
+5. Creates and publishes a 4-sheet dashboard:
    - **Score Distribution** — fraud score histogram by decile, risk segment donut, lift table, suspicious vs clean comparison
    - **Risk Breakdown** — avg fraud score by card type, chargeback vs score scatter, velocity and cross-border ratio by segment
    - **Account & Card Analysis** — segment summary table, highest-risk accounts list, suspicious rate cross-tab by segment × card type
@@ -455,19 +536,64 @@ uv sync          # creates .venv and installs all deps
 
 ## Undeploy Resources
 
-To delete all resources created by this demo:
+Two scripts in `scripts/` help you find and remove all AWS resources created by this demo.
 
-```bash
-python scripts/undeploy.py
-```
+### Step 1: Scan for Resources Across Regions
 
-Add `--dry-run` to preview what would be deleted without executing. The script removes Clean Rooms ML resources, the collaboration, Glue catalog, S3 buckets, ECR repos, IAM roles, CodeBuild project, and QuickSight resources — in reverse dependency order.
-
-To find resources deployed across all regions before running undeploy:
+If you deployed the demo to multiple regions (or aren't sure which region was used), scan first:
 
 ```bash
 python scripts/scan_regions.py
 ```
+
+This checks all AWS Clean Rooms-supported regions for active `cleanrooms-ml-fsi-fraud` collaborations and reports which regions have resources. Example output:
+
+```
+us-east-1: clean
+eu-west-1: FOUND 1 collaboration(s)
+  - cleanrooms-ml-fsi-fraud-collaboration (id=2969b009-...)
+us-west-2: clean
+```
+
+### Step 2: Undeploy Resources
+
+Run the undeploy script for each region that has resources. Set `AWS_REGION` to target the correct region:
+
+```bash
+# Undeploy from the region configured in config.py
+python scripts/undeploy.py
+
+# Undeploy from a specific region (override config.py)
+AWS_REGION=eu-west-1 python scripts/undeploy.py
+```
+
+The script prompts for confirmation before deleting. Use `--dry-run` to preview what would be deleted without making changes:
+
+```bash
+python scripts/undeploy.py --dry-run
+```
+
+Use `--skip-confirmation` for non-interactive execution (e.g., CI pipelines):
+
+```bash
+python scripts/undeploy.py --skip-confirmation
+```
+
+### What Gets Deleted
+
+The undeploy script removes all resources in reverse dependency order:
+
+1. **Clean Rooms ML** — inference jobs, trained models, ML input channels, algorithm associations, configured model algorithms
+2. **Clean Rooms** — ML configuration, table association analysis rules, table associations, configured tables, analysis rules, collaboration
+3. **AWS Glue** — tables and database (`cleanrooms_ml_fsi_fraud`)
+4. **Lake Formation** — permission grants for the data provider role and QuickSight user
+5. **Amazon S3** — source and output buckets (empties all objects and versions first)
+6. **Amazon ECR** — training and inference container repositories (including all images)
+7. **IAM** — all demo roles (`data-provider`, `model-provider`, `ml-config`, `query-runner`, `codebuild`)
+8. **CodeBuild** — build project and associated CloudWatch log groups
+9. **QuickSight** — dashboard, analysis, dataset, and data source (if Step 6 was run)
+
+> **Note:** IAM roles are global (not region-scoped), so they only need to be deleted once regardless of how many regions were used. The script handles this gracefully — if a role was already deleted by a previous region's undeploy run, it skips it silently.
 
 ---
 
