@@ -51,6 +51,8 @@ The output is a ranked list of customers by fraud propensity score, visualized i
 
 ## End-to-End Setup Guide
 
+This section provides and explains the 6 commands required to deploy the whole demo. All the commands are idempotent; so you can safely re-run any of them, even if previous run was interrupted. Each command creates the required resources, and in case resources have already been created, it simply skip to next resource to be created.
+
 ### Approximate Timing
 
 | Step | Description | Time |
