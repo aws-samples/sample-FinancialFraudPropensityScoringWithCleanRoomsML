@@ -117,16 +117,10 @@ python scripts/upload_data.py
 
 ### Step 3: Build & Push Docker Containers
 
-**Scripts:** `scripts/codebuild_containers.py` + `buildspec.yml` (or `scripts/build_and_push.py` for local Docker)
+**Script:** `scripts/codebuild_containers.py` + `buildspec.yml`
 
-**Option A - via CodeBuild (no local Docker needed, recommended):**
 ```bash
 python scripts/codebuild_containers.py
-```
-
-**Option B - via local Docker:**
-```bash
-python scripts/build_and_push.py
 ```
 
 - Creates ECR repositories for training and inference images
