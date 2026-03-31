@@ -299,7 +299,7 @@ python scripts/upload_data.py
 
 **Scripts:** `scripts/codebuild_containers.py` + `buildspec.yml` (or `scripts/build_and_push.py` for local Docker)
 
-**Option A - via CodeBuild (no local Docker needed):**
+**Option A - via CodeBuild (no local Docker needed, recommended):**
 ```bash
 python scripts/codebuild_containers.py
 ```
