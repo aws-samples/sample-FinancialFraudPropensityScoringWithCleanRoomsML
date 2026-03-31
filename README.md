@@ -10,6 +10,30 @@ The output is a ranked list of customers by fraud propensity score, visualized i
 
 ---
 
+## Table of Contents
+
+- [Use Case: Cross-Institution Fraud Propensity Scoring](#use-case-cross-institution-fraud-propensity-scoring)
+- [Data Overview](#data-overview)
+- [Feature Engineering](#feature-engineering)
+- [Analysis & Model Training](#analysis--model-training)
+- [Results](#results)
+- [End-to-End Setup Guide](#end-to-end-setup-guide)
+  - [Prerequisites](#prerequisites)
+  - [Step 0: Configure Your Account](#step-0-configure-your-account)
+  - [Step 1: Generate Synthetic Data](#step-1-generate-synthetic-data)
+  - [Step 2: Upload Data to S3](#step-2-upload-data-to-s3)
+  - [Step 3: Build & Push Docker Containers](#step-3-build--push-docker-containers)
+  - [Step 4: Set Up AWS Clean Rooms Infrastructure](#step-4-set-up-aws-clean-rooms-infrastructure)
+  - [Step 5: Train Model & Run Inference](#step-5-train-model--run-inference)
+  - [Step 6: Create QuickSight Dashboard](#step-6-create-quicksight-dashboard)
+- [Architecture Diagram](#architecture-diagram)
+- [Undeploy Resources](#undeploy-resources)
+- [Project Structure](#project-structure)
+- [Dependency Management](#dependency-management)
+- [License](#license)
+
+---
+
 ## Use Case: Cross-Institution Fraud Propensity Scoring
 
 **Scenario:** A bank (Party A) and a payment processor (Party B) want to collaborate on predicting which customers are most likely to be involved in fraudulent activity, based on combined account behavior and transaction signals. Neither party can share raw data due to regulatory constraints (GDPR, PSD2, bank secrecy laws).
