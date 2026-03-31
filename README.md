@@ -1,4 +1,4 @@
-# Detect Financial Fraud Propensity Earlier by Combining Bank Data and Payment Processor Data using AWS Clean Rooms ML
+# Improve Financial Fraud Propensity Prediction by Combining Bank Data and Payment Processor Data using AWS Clean Rooms ML
 
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](https://opensource.org/licenses/MIT-0)
 
@@ -122,7 +122,7 @@ Higher processor-side risk drives:
 | weekend_txn_ratio | Payment Processor | Fraction of weekend transactions |
 | rapid_succession_count | Payment Processor | Transactions within 1 min of each other |
 | unique_country_count | Payment Processor | Distinct countries transacted from |
-| decline_rate | Derived | declined_transactions / (declined + velocity +ù 30) |
+| decline_rate | Derived | declined_transactions / (declined + velocity +ï¿½ 30) |
 
 **Target variable:** `is_suspicious` (1 = suspicious, 0 = not suspicious)
 
@@ -199,7 +199,7 @@ After successful inference, Clean Rooms ML writes the output to the configured S
 
 ### Interpreting the Results
 
-- `fraud_propensity_score > 0.5` ÔåÆ predicted as likely suspicious (`predicted_suspicious = 1`)
+- `fraud_propensity_score > 0.5` ï¿½ï¿½ï¿½ predicted as likely suspicious (`predicted_suspicious = 1`)
 - Higher scores indicate stronger fraud signals based on combined account + transaction patterns
 - The bank can use these scores to prioritize accounts for enhanced due diligence
 - The payment processor can identify which accounts exhibit cross-channel suspicious patterns
@@ -383,8 +383,8 @@ What it does:
 5. Creates and publishes a 4-sheet dashboard:
    - **Score Distribution** - fraud score histogram by decile, risk segment donut, lift table, suspicious vs clean comparison
    - **Risk Breakdown** - avg fraud score by card type, chargeback vs score scatter, velocity and cross-border ratio by segment
-   - **Account & Card Analysis** - segment summary table, highest-risk accounts list, suspicious rate cross-tab by segment +ù card type
-   - **Business Impact** - suspicious accounts captured by decile, risk exposure by segment, fraud score heatmap by card type +ù country count
+   - **Account & Card Analysis** - segment summary table, highest-risk accounts list, suspicious rate cross-tab by segment +ï¿½ card type
+   - **Business Impact** - suspicious accounts captured by decile, risk exposure by segment, fraud score heatmap by card type +ï¿½ country count
 
 **Output:** Dashboard URL printed at the end, e.g.:
 ```
@@ -446,7 +446,7 @@ flowchart TB
 
     subgraph Dashboard["Amazon QuickSight  Dashboard"]
         ATH["AWS Glue + Athena\n(inference_output table)"]
-        QS["4-Sheet Dashboard\nScore Distribution -À Risk Breakdown\nAccount & Card Analysis -À Business Impact"]
+        QS["4-Sheet Dashboard\nScore Distribution -ï¿½ Risk Breakdown\nAccount & Card Analysis -ï¿½ Business Impact"]
         ATH --> QS
     end
 
@@ -479,34 +479,34 @@ python scripts/sagemaker_training_job.py
 ## Project Structure
 
 ```
-config.py                          ÔåÉ SET YOUR ACCOUNT + REGION HERE
-README.md                         ÔåÉ This file
-buildspec.yml                     ÔåÉ CodeBuild spec
-pyproject.toml                    ÔåÉ Dependency declarations (loose constraints)
-uv.lock                           ÔåÉ Pinned lockfile (exact versions + hashes)
+config.py                          ï¿½ï¿½ï¿½ SET YOUR ACCOUNT + REGION HERE
+README.md                         ï¿½ï¿½ï¿½ This file
+buildspec.yml                     ï¿½ï¿½ï¿½ CodeBuild spec
+pyproject.toml                    ï¿½ï¿½ï¿½ Dependency declarations (loose constraints)
+uv.lock                           ï¿½ï¿½ï¿½ Pinned lockfile (exact versions + hashes)
 data/
-  generate_synthetic_data.py      ÔåÉ Generates synthetic bank + payment processor CSVs
+  generate_synthetic_data.py      ï¿½ï¿½ï¿½ Generates synthetic bank + payment processor CSVs
 containers/
   training/
-    Dockerfile                    ÔåÉ Parameterized base image via ARG
-    requirements.txt              ÔåÉ Pinned deps exported from uv.lock
-    train.py                      ÔåÉ GradientBoosting training script (fraud detection)
+    Dockerfile                    ï¿½ï¿½ï¿½ Parameterized base image via ARG
+    requirements.txt              ï¿½ï¿½ï¿½ Pinned deps exported from uv.lock
+    train.py                      ï¿½ï¿½ï¿½ GradientBoosting training script (fraud detection)
   inference/
-    Dockerfile                    ÔåÉ Parameterized base image via ARG
-    requirements.txt              ÔåÉ Pinned deps exported from uv.lock
-    serve.py                      ÔåÉ HTTP server (/ping + /invocations)
-    inference_handler.py          ÔåÉ Model loading + prediction logic
+    Dockerfile                    ï¿½ï¿½ï¿½ Parameterized base image via ARG
+    requirements.txt              ï¿½ï¿½ï¿½ Pinned deps exported from uv.lock
+    serve.py                      ï¿½ï¿½ï¿½ HTTP server (/ping + /invocations)
+    inference_handler.py          ï¿½ï¿½ï¿½ Model loading + prediction logic
 scripts/
-  upload_data.py                  ÔåÉ Upload CSVs to S3 + create buckets
-  codebuild_containers.py         ÔåÉ Build containers via CodeBuild (no local Docker)
-  build_and_push.py               ÔåÉ Build containers via local Docker
-  setup_cleanrooms.py             ÔåÉ Create Glue, IAM, collaboration, ML config
-  run_cleanrooms_ml.py            ÔåÉ Create channels, train model, run inference
-  create_dashboard.py             ÔåÉ Optional: create QuickSight dashboard (Step 6)
-  test_training_local.py          ÔåÉ Test training locally (no AWS needed)
-  sagemaker_training_job.py       ÔåÉ Optional: run training via SageMaker directly
-  undeploy.py                     ÔåÉ Delete all demo resources (reverse of setup)
-  scan_regions.py                 ÔåÉ Scan all regions for deployed demo resources
+  upload_data.py                  ï¿½ï¿½ï¿½ Upload CSVs to S3 + create buckets
+  codebuild_containers.py         ï¿½ï¿½ï¿½ Build containers via CodeBuild (no local Docker)
+  build_and_push.py               ï¿½ï¿½ï¿½ Build containers via local Docker
+  setup_cleanrooms.py             ï¿½ï¿½ï¿½ Create Glue, IAM, collaboration, ML config
+  run_cleanrooms_ml.py            ï¿½ï¿½ï¿½ Create channels, train model, run inference
+  create_dashboard.py             ï¿½ï¿½ï¿½ Optional: create QuickSight dashboard (Step 6)
+  test_training_local.py          ï¿½ï¿½ï¿½ Test training locally (no AWS needed)
+  sagemaker_training_job.py       ï¿½ï¿½ï¿½ Optional: run training via SageMaker directly
+  undeploy.py                     ï¿½ï¿½ï¿½ Delete all demo resources (reverse of setup)
+  scan_regions.py                 ï¿½ï¿½ï¿½ Scan all regions for deployed demo resources
 docs/
   dashboard-score-distribution.png
   dashboard-risk-breakdown.png
